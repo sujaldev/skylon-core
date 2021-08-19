@@ -4,9 +4,7 @@ THIS MODULE REMOVES UNNECESSARY CHARACTERS FROM THE HTML STREAM
 THE SPECIFICATION FOR PREPROCESSING HTML IS DEFINED HERE:
 https://html.spec.whatwg.org/multipage/parsing.html#preprocessing-the-input-stream
 """
-
-NEWLINE = "\u000A"
-CARRIAGE_RETURN = "\u000D"
+from src.browser_engine.html_parser.helpers.constants import *
 
 
 # TODO: IMPLEMENT HTML PREPROCESSOR NON CHAR HANDLING
