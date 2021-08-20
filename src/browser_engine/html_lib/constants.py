@@ -1,3 +1,4 @@
+EOF = ""
 NULL = "\u0000"
 
 NEWLINE = "\u000A"

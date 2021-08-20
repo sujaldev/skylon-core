@@ -22,31 +22,38 @@ class StartTagToken:
 
         self.tag_name = tag_name
         self.self_closing_flag = False
-        self.attributes = {}
-
-        self.current_attr = (None, None)
+        self.attributes = []
 
         self.errors = []
 
+    def new_attr(self, attr_name="", attr_val=""):
+        self.attributes.append([attr_name, attr_val])
+
+    def append_to_current_attr_name(self, char):
+        self.attributes[-1][0] += char
+
+    def append_to_current_attr_value(self, char):
+        self.attributes[-1][1] += char
+
     def emit(self, output_buffer, err_buffer):
+        self.remove_duplicate_attrs()
         output_buffer.append(self)
         for err in self.errors:
             err_buffer.append(err)
         return self
 
-    def __getitem__(self, item):
-        return self.attributes[item]
-
-    def __setitem__(self, key, value):
-        if key not in self.attributes.keys():
-            self.attributes[key] = value
-        else:
-            self.errors.append("DUPLICATE ATTRIBUTE")
-        self.current_attr = (key, value)
+    def remove_duplicate_attrs(self):
+        unique_attrs, unique_attr_names = [], []
+        for attr in self.attributes:
+            attr_name = attr[0]
+            if attr_name not in unique_attrs:
+                unique_attr_names.append(attr_name)
+                unique_attrs.append(attr)
 
     def __repr__(self):
         attributes = ""
-        for attr_name, attr_val in self.attributes.items():
+        for attr in self.attributes:
+            attr_name, attr_val = attr[0], attr[1]
             attributes += f' {attr_name}="{attr_val}"'
 
         self_ending = "/" if self.self_closing_flag else ""
@@ -61,14 +68,21 @@ class EndTagToken:
 
         self.tag_name = tag_name
         self.self_closing_flag = False
-        self.attributes = {}
-
-        self.current_attr = (None, None)
+        self.attributes = []
 
         self.errors = []
 
+    def new_attr(self, attr_name="", attr_val=""):
+        self.attributes.append([attr_name, attr_val])
+
+    def append_to_current_attr_name(self, char):
+        self.attributes[-1][0] += char
+
+    def append_to_current_attr_val(self, char):
+        self.attributes[-1][1] += char
+
     def emit(self, output_buffer, err_buffer):
-        has_attributes = len(self.attributes.keys()) != 0
+        has_attributes = len(self.attributes) != 0
         has_trailing_solidus = self.self_closing_flag
 
         if has_attributes:
@@ -81,19 +95,10 @@ class EndTagToken:
             err_buffer.append(err)
         return self
 
-    def __getitem__(self, item):
-        return self.attributes[item]
-
-    def __setitem__(self, key, value):
-        if key not in self.attributes.keys():
-            self.attributes[key] = value
-        else:
-            self.errors.append("DUPLICATE ATTRIBUTE")
-        self.current_attr = (key, value)
-
     def __repr__(self):
         attributes = ""
-        for attr_name, attr_val in self.attributes.items():
+        for attr in self.attributes:
+            attr_name, attr_val = attr[0], attr[1]
             attributes += f' {attr_name}="{attr_val}"'
 
         self_ending = "/" if self.self_closing_flag else ""
@@ -123,15 +128,18 @@ class CharacterToken:
         self.data = data
 
     def emit(self, output_buffer, err_buffer):
-        last_token = output_buffer[-1]
-        if last_token.type == "character":
-            output_buffer[-1].data += self.data
-        else:
+        try:
+            last_token = output_buffer[-1]
+            if last_token.type == "character":
+                output_buffer[-1].data += self.data
+            else:
+                output_buffer.append(self)
+        except IndexError:
             output_buffer.append(self)
         return self
 
     def __repr__(self):
-        return f"<!--{self.data}-->"
+        return f"{self.data}"
 
 
 class EOFToken:
