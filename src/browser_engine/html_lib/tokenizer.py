@@ -73,7 +73,7 @@ class HTMLTokenizer:
             self.generate_parse_error("UNEXPECTED NULL CHARACTER")
             self.emit(CharacterToken(current_char))
 
-        elif current_char == "":
+        elif current_char == EOF:
             self.emit(EOFToken())
 
         else:
@@ -96,7 +96,7 @@ class HTMLTokenizer:
         elif current_char == "?":
             raise NotImplementedError
 
-        elif current_char == "":  # empty current char represents EOF
+        elif current_char == EOF:
             self.generate_parse_error("EOF BEFORE TAG NAME")
             self.emit(CharacterToken("<"))
             self.emit(EOFToken())
@@ -119,7 +119,7 @@ class HTMLTokenizer:
             self.generate_parse_error("MISSING END TAG NAME")
             self.state = self.data_state
 
-        elif current_char == "":  # emtpy string represents EOF
+        elif current_char == EOF:
             self.generate_parse_error("EOF BEFORE TAGE NAME")
             self.emit(CharacterToken("</"))
             self.emit(EOFToken())
@@ -147,7 +147,7 @@ class HTMLTokenizer:
             self.generate_parse_error("UNEXPECTED NULL CHARACTER")
             self.token_buffer.tag_name += REPLACEMENT_CHARACTER
 
-        elif current_char == "":  # empty string represents EOF
+        elif current_char == EOF:
             self.generate_parse_error("EOF IN TAG")
             self.emit(EOFToken())
 
