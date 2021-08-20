@@ -48,3 +48,4 @@ class Stream:
 
     def reconsume(self):
         self.reconsuming = False
+        return self.current_char, self.next_char
