@@ -11,7 +11,7 @@ https://html.spec.whatwg.org/multipage/parsing.html#tokenization
 """
 from src.browser_engine.html_lib.tokens import *
 from src.browser_engine.html_lib.constants import *
-from src.browser_engine.html_lib import preprocessor, tokenizer_stream
+from src.browser_engine.html_lib import preprocessor, streams
 
 
 def inside(constant, char):
@@ -30,7 +30,7 @@ class HTMLTokenizer:
     def __init__(self, source):
         # INITIALIZE STREAM
         preprocessed_stream = preprocessor.preprocess(source)
-        self.stream = tokenizer_stream.Stream(preprocessed_stream)
+        self.stream = streams.Stream(preprocessed_stream)
 
         # TOKENIZER STATE
         self.state = self.data_state  # DATA STATE IS THE DEFAULT STATE AS MENTIONED IN THE SPECIFICATION
@@ -43,6 +43,9 @@ class HTMLTokenizer:
         self.temp_buffer = ""
         self.token_buffer = None
         self.return_state = None
+
+        # TOKENIZE RIGHT AWAY
+        self.tokenize()
 
     def emit(self, new_token=None):
         if new_token is None:
