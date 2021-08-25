@@ -50,6 +50,19 @@ class StartTagToken:
                 unique_attr_names.append(attr_name)
                 unique_attrs.append(attr)
 
+    def __getitem__(self, item):
+        for attr in self.attributes:
+            attribute_name = attr[0]
+            if attribute_name == item:
+                value = attr[1]
+                return value
+        else:
+            raise KeyError
+
+    def __setitem__(self, key, value):
+        self.attributes.append([key, value])
+        self.remove_duplicate_attrs()
+
     def __repr__(self):
         attributes = ""
         for attr in self.attributes:

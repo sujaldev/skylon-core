@@ -76,15 +76,15 @@ class Stream:
 
 class TokenStream:
     def __init__(self, token_list):
-        self.token_list = token_list
+        self.token_list = InfiniteList(token_list)
 
         self.index = -1
         self.current_token = None
 
-        self.reconsuming = False
+        self.reprocessing = False
 
     def next(self):
-        if self.reconsuming:
+        if self.reprocessing:
             return self.reprocess()
 
         self.index += 1
@@ -92,9 +92,9 @@ class TokenStream:
         return self.current_token
 
     def reprocess(self):
-        self.reconsuming = False
+        self.reprocessing = False
         return self.current_token
 
     def is_truly_out_of_index(self):
         is_out_of_index = self.index > len(self.token_list) or len(self.token_list) == 0
-        return is_out_of_index and not self.reconsuming
+        return is_out_of_index and not self.reprocessing

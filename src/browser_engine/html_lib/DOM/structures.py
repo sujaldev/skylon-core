@@ -39,7 +39,9 @@ class OrderedSet:
 
 
 class Node:
-    def __init__(self):
+    def __init__(self, node_document):
+        self.node_document = node_document
+
         self.root = self
         self.parent = None
         self.children = OrderedSet()
@@ -57,7 +59,7 @@ class Node:
 
 class Document(Node):
     def __init__(self):
-        super().__init__()
+        super().__init__(node_document=self)
         self.encoding = "utf8"
         self.content_type = "application/xml"
         self.url = "about:blank"
@@ -65,10 +67,12 @@ class Document(Node):
         self.type = "xml"
         self.mode = "no-quirks"
 
+        self.parser_cannot_change_mode = False
+
 
 class DocumentType(Node):
-    def __init__(self, name):
-        super().__init__()
+    def __init__(self, node_document, name):
+        super().__init__(node_document)
         self.name = name
         self.public_id = ""
         self.system_id = ""
@@ -78,19 +82,57 @@ class DocumentType(Node):
 
 
 class Element(Node):
-    def __init__(self):
-        super().__init__()
-        self.namespace = None
-        self.namespace_prefix = None
-        self.local_name = None
-        self.custom_element_state = None
-        self.custom_element_definition = None
-        self.is_value = None
+    def __init__(self, node_document, namespace, namespace_prefix, local_name, custom_element_state,
+                 custom_element_definition, is_value, attributes=None):
+        super().__init__(node_document)
+        self.namespace = namespace
+        self.namespace_prefix = namespace_prefix
+        self.local_name = local_name
+        self.custom_element_state = custom_element_state
+        self.custom_element_definition = custom_element_definition
+        self.is_value = is_value
+
+        if attributes is None:
+            self.attributes = {}
+        else:
+            self.attributes = attributes
+
+    def append_attrs_from_token(self, token_attr_list):
+        for attr_name, attr_value in token_attr_list:
+            self.attributes[attr_name] = attr_value
+
+    def __getitem__(self, item):
+        return self.attributes[item]
+
+    def __setitem__(self, key, value):
+        self.attributes[key] = value
+
+
+class HTMLElement(Node):
+    def __init__(self, node_document, attributes=None):
+        super().__init__(node_document)
+        if attributes is None:
+            self.attributes = {}
+        else:
+            self.attributes = attributes
+
+    def append_attrs_from_token(self, token_attr_list):
+        for attr_name, attr_value in token_attr_list:
+            self.attributes[attr_name] = attr_value
+
+    def __getitem__(self, item):
+        return self.attributes[item]
+
+    def __setitem__(self, key, value):
+        self.attributes[key] = value
+
+    def __len__(self):
+        return len(self.children)
 
 
 class Text(Node):
-    def __init__(self, data=""):
-        super().__init__()
+    def __init__(self, node_document, data=""):
+        super().__init__(node_document)
         self.data = data
 
     def add_child(self, child):
