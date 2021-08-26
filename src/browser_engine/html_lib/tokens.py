@@ -40,6 +40,8 @@ class StartTagToken:
         output_buffer.append(self)
         for err in self.errors:
             err_buffer.append(err)
+
+        self.convert_attrs_to_dict()
         return self
 
     def remove_duplicate_attrs(self):
@@ -49,6 +51,14 @@ class StartTagToken:
             if attr_name not in unique_attrs:
                 unique_attr_names.append(attr_name)
                 unique_attrs.append(attr)
+
+    def convert_attrs_to_dict(self):
+        attr_dict = {}
+        for attr_name, attr_value in self.attributes:
+            attr_exists_already = attr_name in attr_dict.keys()
+            if not attr_exists_already:
+                attr_dict[attr_name] = attr_value
+        self.attributes = attr_dict
 
     def __getitem__(self, item):
         for attr in self.attributes:

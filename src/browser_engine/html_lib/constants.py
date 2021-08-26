@@ -22,3 +22,29 @@ ASCII_ALPHANUMERIC = ASCII_ALPHA + ASCII_DIGIT
 
 # NAMESPACES
 HTML_NAMESPACE = "http://www.w3.org/1999/xhtml"
+MATH_ML_NAMESPACE = "http://www.w3.org/1998/Math/MathML"
+SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+XLINK_NAMESPACE = "http://www.w3.org/1999/xlink"
+XML_NAMESPACE = "http://www.w3.org/XML/1998/namespace"
+XMLNS_NAMESPACE = "http://www.w3.org/2000/xmlns/"
+
+UNACCEPTED_TAGS_IN_FOREIGN_CONTENT = [
+    "b", "big", "blockquote", "body", "br", "center", "code", "dd", "div", "dl", "dt", "em", "embed", "h1", "h2", "h3",
+    "h4", "h5", "h6", "head", "hr", "i", "img", "li", "listing", "menu", "meta", "nobr", "ol", "p", "pre", "ruby", "s",
+    "small", "span", "strong", "strike", "sub", "sup", "table", "tt", "u", "ul", "var"
+]
+
+MATH_ML_TEXT_INTEGRATION_POINTS = [
+    "mi",
+    "mo",
+    "mn",
+    "ms",
+    "mtext"
+]
+
+
+def is_html_integration_point(element):
+    if element.type == "annotation-xml":
+        return element.attributes["encoding"].lower() in ["text/html", "application/xhtml+xml"]
+
+    return element.type in ["foreignObject", "desc", "title"]  # POSSIBLE BUG DUE TO TITLE (title is also an html tag)
