@@ -7,7 +7,9 @@ class DOCTYPEToken:
         self.system_identifier = "missing"
         self.force_quirks_flag = False
 
-    def emit(self, output_buffer, err_buffer):
+    def emit_to(self, tokenizer_instance):
+        output_buffer = tokenizer_instance.output
+
         output_buffer.append(self)
         return self
 
@@ -35,7 +37,11 @@ class StartTagToken:
     def append_to_current_attr_value(self, char):
         self.attributes[-1][1] += char
 
-    def emit(self, output_buffer, err_buffer):
+    def emit_to(self, tokenizer_instance):
+        output_buffer = tokenizer_instance.output
+        err_buffer = tokenizer_instance.errors
+        tokenizer_instance.last_emitted_start_tag_name = self.tag_name
+
         self.remove_duplicate_attrs()
         output_buffer.append(self)
         for err in self.errors:
@@ -104,7 +110,10 @@ class EndTagToken:
     def append_to_current_attr_val(self, char):
         self.attributes[-1][1] += char
 
-    def emit(self, output_buffer, err_buffer):
+    def emit_to(self, tokenizer_instance):
+        output_buffer = tokenizer_instance.output
+        err_buffer = tokenizer_instance.errors
+
         has_attributes = len(self.attributes) != 0
         has_trailing_solidus = self.self_closing_flag
 
@@ -136,7 +145,8 @@ class CommentToken:
 
         self.data = data
 
-    def emit(self, output_buffer, err_buffer):
+    def emit_to(self, tokenizer_instance):
+        output_buffer = tokenizer_instance.output
         output_buffer.append(self)
         return self
 
@@ -150,7 +160,9 @@ class CharacterToken:
 
         self.data = data
 
-    def emit(self, output_buffer, err_buffer):
+    def emit_to(self, tokenizer_instance):
+        output_buffer = tokenizer_instance.output
+
         try:
             last_token = output_buffer[-1]
             if last_token.type == "character":
@@ -169,7 +181,8 @@ class EOFToken:
     def __init__(self):
         self.type = "EOF"
 
-    def emit(self, output_buffer, err_buffer):
+    def emit_to(self, tokenizer_instance):
+        output_buffer = tokenizer_instance.output
         output_buffer.append(self)
         return self
 

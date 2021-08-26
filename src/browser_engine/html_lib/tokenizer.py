@@ -34,6 +34,7 @@ class HTMLTokenizer:
 
         # TOKENIZER STATE
         self.state = self.data_state  # DATA STATE IS THE DEFAULT STATE AS MENTIONED IN THE SPECIFICATION
+        self.new_token_emitted = False
 
         # TOKENIZER OUTPUT
         self.output = []  # CALLING A TOKEN'S EMIT METHOD APPENDS THE TOKEN IN THIS LIST
@@ -43,26 +44,30 @@ class HTMLTokenizer:
         self.temp_buffer = ""
         self.token_buffer = None
         self.return_state = None
+        self.last_emitted_start_tag_name = None
 
         # TOKENIZE RIGHT AWAY
         self.tokenize()
 
+    ########################################################
+    # ALGORITHMS
     def emit(self, new_token=None):
         if new_token is None:
             token = self.token_buffer
         else:
             token = new_token
 
-        token.emit(
-            output_buffer=self.output,
-            err_buffer=self.errors
-        )
+        token.emit_to(self)
 
+        self.new_token_emitted = True
         self.token_buffer = None
+        self.temp_buffer = ""
 
     def generate_parse_error(self, err_message):
         self.errors.append(err_message)
 
+    ########################################################
+    # STATES
     def data_state(self):
         current_char, next_char = self.stream.consume()
 
@@ -82,6 +87,7 @@ class HTMLTokenizer:
         else:
             self.emit(CharacterToken(current_char))
 
+    ########################################################
     def tag_open_state(self):
         current_char, next_char = self.stream.consume()
 
@@ -157,6 +163,7 @@ class HTMLTokenizer:
         else:
             self.token_buffer.tag_name += current_char
 
+    ########################################################
     def before_attr_name_state(self):
         current_char, next_char = self.stream.consume()
 
@@ -353,6 +360,152 @@ class HTMLTokenizer:
             self.stream.reconsuming = True
             self.state = self.before_attr_name_state
 
+    ########################################################
+    # STATES CONTROLLED BY TREE CONSTRUCTION STAGE
+    def rcdata_state(self):
+        current_char, next_char = self.stream.consume()
+
+        if current_char == "&":
+            raise NotImplementedError
+
+        elif current_char == "<":
+            self.state = self.rcdata_less_than_sign_state
+
+        elif current_char == NULL:
+            self.generate_parse_error("UNEXPECTED NULL CHARACTER")
+            self.emit(CharacterToken(current_char))
+
+        elif current_char == EOF:
+            self.emit(EOFToken())
+
+        else:
+            self.emit(CharacterToken(current_char))
+
+    def rcdata_less_than_sign_state(self):
+        current_char, next_char = self.stream.consume()
+
+        if current_char == "/":
+            self.temp_buffer = ""
+            self.state = self.rcdata_end_tag_open_state
+        else:
+            self.emit(CharacterToken("<"))
+            self.stream.reconsuming = True
+            self.state = self.rcdata_state
+
+    def rcdata_end_tag_open_state(self):
+        current_char, next_char = self.stream.consume()
+
+        if inside(ASCII_ALPHA, current_char):
+            self.token_buffer = EndTagToken()
+            self.stream.reconsuming = True
+            self.state = self.rcdata_end_tag_name_state
+        else:
+            self.emit(CharacterToken("</"))
+            self.stream.reconsuming = True
+            self.state = self.rcdata_state
+
+    def rcdata_end_tag_name_state(self):
+        current_char, next_char = self.stream.consume()
+
+        is_appropriate_end_tag = self.token_buffer.tag_name == self.last_emitted_start_tag_name
+        if inside(WHITESPACE, current_char) and is_appropriate_end_tag:
+            self.state = self.before_attr_name_state
+
+        elif current_char == "/" and is_appropriate_end_tag:
+            self.state = self.self_closing_start_tag_state
+
+        elif current_char == ">" and is_appropriate_end_tag:
+            self.state = self.data_state
+            self.emit(self.token_buffer)
+
+        elif inside(ASCII_ALPHA, current_char):
+            self.token_buffer.tag_name += current_char.lower()
+            self.temp_buffer += current_char
+
+        else:
+            self.emit(CharacterToken("</" + self.temp_buffer))
+            self.stream.reconsuming = True
+            self.state = self.rcdata_state
+
+    ########################################################
+    def raw_text_state(self):
+        current_char, next_char = self.stream.consume()
+
+        if current_char == "&":
+            raise NotImplementedError
+
+        elif current_char == "<":
+            self.state = self.raw_text_less_than_sign_state
+
+        elif current_char == NULL:
+            self.generate_parse_error("UNEXPECTED NULL CHARACTER")
+            self.emit(CharacterToken(current_char))
+
+        elif current_char == EOF:
+            self.emit(EOFToken())
+
+        else:
+            self.emit(CharacterToken(current_char))
+
+    def raw_text_less_than_sign_state(self):
+        current_char, next_char = self.stream.consume()
+
+        if current_char == "/":
+            self.temp_buffer = ""
+            self.state = self.raw_text_end_tag_open_state
+        else:
+            self.emit(CharacterToken("<"))
+            self.stream.reconsuming = True
+            self.state = self.raw_text_state
+
+    def raw_text_end_tag_open_state(self):
+        current_char, next_char = self.stream.consume()
+
+        if inside(ASCII_ALPHA, current_char):
+            self.token_buffer = EndTagToken()
+            self.stream.reconsuming = True
+            self.state = self.raw_text_end_tag_name_state
+        else:
+            self.emit(CharacterToken("</"))
+            self.stream.reconsuming = True
+            self.state = self.raw_text_state
+
+    def raw_text_end_tag_name_state(self):
+        current_char, next_char = self.stream.consume()
+
+        is_appropriate_end_tag = self.token_buffer.tag_name == self.last_emitted_start_tag_name
+        if inside(WHITESPACE, current_char) and is_appropriate_end_tag:
+            self.state = self.before_attr_name_state
+
+        elif current_char == "/" and is_appropriate_end_tag:
+            self.state = self.self_closing_start_tag_state
+
+        elif current_char == ">" and is_appropriate_end_tag:
+            self.state = self.data_state
+            self.emit(self.token_buffer)
+
+        elif inside(ASCII_ALPHA, current_char):
+            self.token_buffer.tag_name += current_char.lower()
+            self.temp_buffer += current_char
+
+        else:
+            self.emit(CharacterToken("</" + self.temp_buffer))
+            self.stream.reconsuming = True
+            self.state = self.raw_text_state
+
+    ########################################################
     def tokenize(self):
         while not self.stream.is_truly_out_of_index():
-            self.state()
+            self.state()  # process stream according to rules in current state
+
+            # TOKEN GENERATOR
+            if self.new_token_emitted:
+                emitted_token_is_character = self.output[-1].type == "character"
+                next_char_is_character = self.stream.next_char not in ["&", "<", NULL, EOF]
+                char_token_merge_required_before_emitting = emitted_token_is_character and next_char_is_character
+                if char_token_merge_required_before_emitting:
+                    # THIS CLAUSE MERGES CONSECUTIVE CHARACTER TOKENS INTO ONE
+                    continue
+
+                self.new_token_emitted = False
+                yield self.output.pop()
