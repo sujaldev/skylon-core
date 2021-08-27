@@ -1,4 +1,4 @@
-from src.browser_engine.html_lib.constants import HTML_NAMESPACE
+from src.browser_engine.html_lib.CONSTANTS import HTML_NAMESPACE
 
 
 class Node:
@@ -24,10 +24,13 @@ class Node:
 
     def insert_child(self, child, position):
         child.parent = self
-        self.children.insert(child, position)
+        self.children.insert(position, child)
 
     def find_child(self, child):
         return self.children.index(child)
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} type={self.type}>"
 
 
 class Document(Node):

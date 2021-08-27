@@ -142,6 +142,7 @@ class EndTagToken:
 class CommentToken:
     def __init__(self, data=""):
         self.type = "comment"
+        self.tag_name = ""
 
         self.data = data
 
@@ -157,6 +158,7 @@ class CommentToken:
 class CharacterToken:
     def __init__(self, data=""):
         self.type = "character"
+        self.tag_name = ""
 
         self.data = data
 
@@ -180,6 +182,7 @@ class CharacterToken:
 class EOFToken:
     def __init__(self):
         self.type = "EOF"
+        self.tag_name = ""
 
     def emit_to(self, tokenizer_instance):
         output_buffer = tokenizer_instance.output

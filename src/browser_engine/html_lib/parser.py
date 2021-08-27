@@ -16,7 +16,7 @@ class TokenStream:
     def __init__(self, source):
         self.tokenizer = HTMLTokenizer(source)
         self.token_generator = self.tokenizer.tokenize()
-        self.current_token = None
+        self.current_token = EOFToken()
 
         self.reprocessing = False
         self.out_of_tokens = False
@@ -49,6 +49,8 @@ class HTMLParser:
         self.insertion_mode = self.initial_mode
         self.original_insertion_mode = None
         self.stack_of_open_elems = []
+
+        self.parsing_finished = False
 
         # STATE FLAGS
         self.foster_parenting = False  # FOSTER PARENTING OCCURS DUE TO INCORRECT NESTING OF TAGS
@@ -142,7 +144,7 @@ class HTMLParser:
             elif last_table.parent is not None:
                 adjusted_insertion_location = {
                     "insertion_node": last_table.parent,
-                    "insertion_position": last_table.parent.find_child(last_table) - 1
+                    "insertion_location": last_table.parent.find_child(last_table) - 1
                 }
                 return adjusted_insertion_location
 
@@ -156,7 +158,7 @@ class HTMLParser:
         else:
             adjusted_insertion_location = {
                 "insertion_node": target,
-                "insertion_position": -1
+                "insertion_location": -1
             }
 
         if adjusted_insertion_location["insertion_node"].type == "template":
@@ -334,11 +336,20 @@ class HTMLParser:
         self.original_insertion_mode = self.insertion_mode
         self.insertion_mode = self.text_mode
 
+    def reconstruct_active_formatting_elements(self):
+        # TODO: COMPLETE ACTIVE FORMATTING ELEMENTS
+        pass
+
     # MAIN LOOP
-    def dispatcher(self):
+    def dispatch_token(self):
+        try:
+            element_is_in_html_namespace = self.adjusted_current_node().namespace == HTML_NAMESPACE,
+        except AttributeError:
+            element_is_in_html_namespace = True
+
         conditions_for_parsing_in_current_insertion_mode = [
             len(self.stack_of_open_elems) == 0,
-            self.adjusted_current_node().namespace == HTML_NAMESPACE,
+            element_is_in_html_namespace,
             # TODO: SKIPPING SEEMINGLY UNNECESSARY CONDITIONS IN DISPATCHER
             self.token_stream.current_token.type == "eof"
         ]
@@ -347,6 +358,13 @@ class HTMLParser:
             self.insertion_mode()
         else:
             self.parse_foreign_content()
+
+    def parse(self):
+        # THIS IS AN HACKISH APPROACH TO PROCESS TOKENS (BASICALLY IGNORES THE PARSING IN FOREIGN CONTENT ALGORITHM)
+        while not self.token_stream.is_truly_out_of_index():
+            if self.parsing_finished:
+                break
+            self.insertion_mode()
 
     # INSERTION MODES
     def initial_mode(self):
@@ -542,7 +560,86 @@ class HTMLParser:
             self.token_stream.reprocessing = True
 
     def in_body_mode(self):
-        pass
+        token = self.token_stream.next()
+        # these are checked too often, so decided to store in variables
+        tag_name = token.tag_name
+        is_start_tag, is_end_tag = token.type == "start tag", token.type == "end tag"
+
+        unacceptable_elements = ["dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc", "tbody",
+                                 "td", "tfoot", "th", "thead", "tr", "body", "html"]
+
+        if token.type == "character":
+            if token.data == NULL:
+                self.parse_error()
+                return  # ignore
+
+            elif is_whitespace(token.data):
+                self.reconstruct_active_formatting_elements()
+
+                self.insert_character(token.data)
+
+            else:
+                self.reconstruct_active_formatting_elements()
+                self.insert_character(token.data)
+                self.frameset_ok_flag = False
+
+        elif token.type == "comment":
+            raise NotImplementedError
+
+        elif token.type == "DOCTYPE":
+            self.parse_error()
+            return  # ignore
+
+        elif is_start_tag and tag_name == "html":
+            self.parse_error()
+            # FIXME: SKIPPED STEPS HERE
+
+        elif (is_start_tag and tag_name in ["base", "basefont", "bgsound", "link", "meta", "noframes", "script",
+                                            "style", "template", "title"]) or \
+                (is_end_tag and tag_name == "template"):
+            self.token_stream.reprocessing = True
+            self.in_head_mode()
+
+        elif is_start_tag and tag_name == "body":
+            self.parse_error()
+
+            second_element_in_stack_is_not_body = not self.stack_of_open_elems[1].type == "body"
+            stack_has_only_one_node = len(self.stack_of_open_elems) == 1
+            template_element_in_stack = False
+            for node in self.stack_of_open_elems[::-1]:
+                if node.type == "template":
+                    template_element_in_stack = True
+                    break
+            fragment_case = second_element_in_stack_is_not_body or stack_has_only_one_node or template_element_in_stack
+
+            if fragment_case:
+                return  # ignore
+            else:
+                self.frameset_ok_flag = False
+                body_element = self.stack_of_open_elems[1]
+                body_attrs = body_element.keys()
+                for attr_name, attr_value in token.attributes.items():
+                    if attr_name not in body_attrs:
+                        body_element.attributes[attr_name] = attr_value
+
+        elif is_start_tag and tag_name == "frameset":
+            raise NotImplementedError
+
+        elif token.type == "EOF":
+            # FIXME: SKIPPING STACK OF TEMPLATE INSERTION MODES CHECK HERE
+
+            stack_has_unacceptable_element = False
+            for node in self.stack_of_open_elems:
+                if node.type in unacceptable_elements:
+                    stack_has_unacceptable_element = True
+
+            if stack_has_unacceptable_element:
+                self.parse_error()
+
+            self.parsing_finished = True
+
+        elif is_end_tag and tag_name == "body":
+            pass
 
     def text_mode(self):
         pass
