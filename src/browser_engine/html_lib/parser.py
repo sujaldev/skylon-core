@@ -2,19 +2,48 @@
 THIS IS THE TREE CONSTRUCTION STAGE AS SPECIFIED IN THE SPECIFICATION HERE:
 https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
 """
-from src.browser_engine.html_lib.tokenizer import streams
-from src.browser_engine.html_lib.DOM import *
-from src.browser_engine.html_lib.constants import *
+from src.browser_engine.html_lib.CONSTANTS import *
+from src.browser_engine.html_lib.structures.DOM import *
+from src.browser_engine.html_lib.structures.TOKENS import EOFToken
+from src.browser_engine.html_lib.tokenizer import HTMLTokenizer
 
 
 def is_whitespace(string):
     return all([char in WHITESPACE for char in string])
 
 
+class TokenStream:
+    def __init__(self, source):
+        self.tokenizer = HTMLTokenizer(source)
+        self.token_generator = self.tokenizer.tokenize()
+        self.current_token = None
+
+        self.reprocessing = False
+        self.out_of_tokens = False
+
+    def next(self):
+        if self.reprocessing:
+            return self.reprocess()
+        try:
+            self.current_token = next(self.token_generator)
+        except StopIteration:
+            self.out_of_tokens = True
+            self.current_token = EOFToken()
+        return self.current_token
+
+    def reprocess(self):
+        self.reprocessing = False
+        return self.current_token
+
+    def is_truly_out_of_index(self):
+        return self.out_of_tokens and not self.reprocessing
+
+
 # noinspection PyMethodMayBeStatic
 class HTMLParser:
-    def __init__(self, token_list):
-        self.token_stream = streams.TokenStream(token_list)
+    def __init__(self, source):
+        self.token_stream = TokenStream(source)
+        self.tokenizer = self.token_stream.tokenizer
 
         # STATE VARIABLES
         self.insertion_mode = self.initial_mode
@@ -291,6 +320,10 @@ class HTMLParser:
             result.is_value = is_value
         return result
 
+    def generic_rcdata_algorithm(self, token):
+        self.insert_html_element(token)
+        self.tokenizer.state = self.tokenizer
+
     # MAIN LOOP
     def dispatcher(self):
         conditions_for_parsing_in_current_insertion_mode = [
@@ -419,5 +452,7 @@ class HTMLParser:
             # POSSIBLE BUG: SKIPPED ENCODING HANDLING HERE (SEEMED UNNECESSARY)
 
         elif is_start_tag and tag_name == "title":
+            pass  # TODO: REMINDER YOU WERE WORKING ON THIS BEFORE RESTRUCTURING
 
-
+    def in_body(self):
+        pass

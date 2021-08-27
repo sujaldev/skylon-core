@@ -9,11 +9,12 @@ PARSING SUCH LANGUAGES IS EASIER. HTML IS NOT SUCH A LANGUAGE AND HAS TO PARSED 
 A STATE MACHINE. THE STATE MACHINE TO TOKENIZE HTML IS DESCRIBE HERE:
 https://html.spec.whatwg.org/multipage/parsing.html#tokenization
 """
-from src.browser_engine.html_lib.tokens import *
-from src.browser_engine.html_lib.constants import *
-from src.browser_engine.html_lib import preprocessor, streams
+from src.browser_engine.html_lib.structures.TOKENS import *
+from src.browser_engine.html_lib.CONSTANTS import *
+from src.browser_engine.html_lib import preprocessor
 
 
+# HELPER FUNCS AND CLASSES
 def inside(constant, char):
     """
     NORMALLY THE STATEMENT "" in "any_string" WILL RETURN TRUE, THIS FUNCTION AVOIDS THAT
@@ -26,11 +27,63 @@ def inside(constant, char):
         return False
 
 
+class InfiniteString(str):
+    """
+    THIS IS A TYPE OF STRING THAT DOES NOT RAISE INDEX ERRORS,
+    INSTEAD IT RETURNS EMPTY STRING WHEN OUT OUT OF INDEX.
+    ALSO RETURNS EMTPY STRING WHEN A NEGATIVE INDEX IS ACCESSED.
+    """
+
+    def __getitem__(self, index):
+        try:
+            return super().__getitem__(index)
+        except IndexError:
+            return ""
+
+
+class Stream:
+    def __init__(self, source):
+        self.source = InfiniteString(source)
+
+        self.index = 0
+
+        # CHARACTERS ARE INITIALIZED AS MENTIONED IN THE SPECIFICATION
+        self.current_char = ""  # The HTML Specification doesn't mention a specific initial value for the Current Char
+        self.next_char = self.source[self.index]
+
+        # A Flag is used instead of directly calling Stream.reconsume because,
+        # A tokenizer state can just set the reconsumption flag and next state can normally call Stream.consume,
+        # The Stream.consume will automatically call the reconsume method, so the tokenizer doesn't have to.
+        self.reconsuming = False  # (MAKING THE TOKENIZER IMPLEMENTATION MUCH EASIER)
+
+    def is_truly_out_of_index(self):
+        # The index could be out of range but processing should continue until no reconsumption is required.
+        is_out_of_index = self.index > len(self.source) or len(self.source) == 0
+        return is_out_of_index and not self.reconsuming
+
+    def consume(self, step=1):
+        if self.reconsuming:
+            return self.reconsume()
+
+        self.current_char = self.next_char
+        self.index += step
+        self.next_char = self.source[self.index]
+
+        return self.current_char, self.next_char
+
+    def reconsume(self):
+        self.reconsuming = False
+        return self.current_char, self.next_char
+
+
+#################################
+# TOKENIZER SECTION BEGINS HERE #
+#################################
 class HTMLTokenizer:
     def __init__(self, source):
         # INITIALIZE STREAM
         preprocessed_stream = preprocessor.preprocess(source)
-        self.stream = streams.Stream(preprocessed_stream)
+        self.stream = Stream(preprocessed_stream)
 
         # TOKENIZER STATE
         self.state = self.data_state  # DATA STATE IS THE DEFAULT STATE AS MENTIONED IN THE SPECIFICATION

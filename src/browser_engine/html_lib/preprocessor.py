@@ -4,7 +4,7 @@ THIS MODULE REMOVES UNNECESSARY CHARACTERS FROM THE HTML STREAM
 THE SPECIFICATION FOR PREPROCESSING HTML IS DEFINED HERE:
 https://html.spec.whatwg.org/multipage/parsing.html#preprocessing-the-input-stream
 """
-from src.browser_engine.html_lib.constants import *
+from src.browser_engine.html_lib.CONSTANTS import CARRIAGE_RETURN, NEWLINE
 
 
 # TODO: IMPLEMENT HTML PREPROCESSOR NON CHAR HANDLING
@@ -22,8 +22,8 @@ def normalize_newlines(source):
     return normalized
 
 
-def preprocess(stream):
+def preprocess(source):
     handle_non_char()
     handle_control_chars()
-    processed_stream = normalize_newlines(stream)
+    processed_stream = normalize_newlines(source)
     return processed_stream
