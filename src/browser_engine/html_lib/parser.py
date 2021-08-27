@@ -320,9 +320,19 @@ class HTMLParser:
             result.is_value = is_value
         return result
 
-    def generic_rcdata_algorithm(self, token):
+    def generic_rcdata_element_parsing_algorithm(self, token):
         self.insert_html_element(token)
-        self.tokenizer.state = self.tokenizer
+        self.tokenizer.state = self.tokenizer.rcdata_state
+
+        self.original_insertion_mode = self.insertion_mode
+        self.insertion_mode = self.text_mode
+
+    def generic_raw_text_element_parsing_algorithm(self, token):
+        self.insert_html_element(token)
+        self.tokenizer.state = self.tokenizer.raw_text_state
+
+        self.original_insertion_mode = self.insertion_mode
+        self.insertion_mode = self.text_mode
 
     # MAIN LOOP
     def dispatcher(self):
@@ -358,10 +368,10 @@ class HTMLParser:
             if self.parser_cannot_change_mode:
                 self.document.mode = "quirks-mode"
 
-            self.insertion_mode = self.before_html
+            self.insertion_mode = self.before_html_mode
             self.token_stream.reprocessing = True
 
-    def before_html(self):
+    def before_html_mode(self):
         token = self.token_stream.next()
 
         if token.type == "DOCTYPE":
@@ -378,7 +388,7 @@ class HTMLParser:
             html_element = self.create_element_for_token(token, HTML_NAMESPACE, self.document)
             self.document.append_child(html_element)
             self.stack_of_open_elems.append(html_element)
-            self.insertion_mode = self.before_head
+            self.insertion_mode = self.before_head_mode
 
         elif token.type == "end tag" and token.tag_name not in ["head", "body", "br"]:
             self.parse_error()
@@ -390,10 +400,10 @@ class HTMLParser:
             self.document.append_child(html_element)
             self.stack_of_open_elems.append(html_element)
 
-            self.insertion_mode = self.before_head
+            self.insertion_mode = self.before_head_mode
             self.token_stream.reprocessing = True
 
-    def before_head(self):
+    def before_head_mode(self):
         token = self.token_stream.next()
 
         if token.type == "character" and is_whitespace(token.data):
@@ -404,13 +414,13 @@ class HTMLParser:
 
         elif token.type == "start tag" and token.tag_name == "html":
             self.token_stream.reprocessing = True
-            self.in_body()
+            self.in_body_mode()
 
         elif token.type == "start tag" and token.tag_name == "head":
             head_element = self.insert_html_element(token)
             self.head_pointer = head_element
 
-            self.insertion_mode = self.in_head
+            self.insertion_mode = self.in_head_mode
 
         elif token.type == "end tag" and token.tag_name not in ["head", "body", "html", "br"]:
             self.parse_error()
@@ -420,13 +430,13 @@ class HTMLParser:
             head_element = self.insert_html_element(token)
             self.head_pointer = head_element
 
-            self.insertion_mode = self.in_head
+            self.insertion_mode = self.in_head_mode
             self.token_stream.reprocessing = True
 
-    def in_head(self):
+    def in_head_mode(self):
         token = self.token_stream.next()
         tag_name = token.tag_name
-        is_start_tag = token.type == "start tag"
+        is_start_tag, is_end_tag = token.type == "start tag", token.type == "end tag"
 
         if token.type == "character" and is_whitespace(token.data):
             self.insert_character(token.data)
@@ -440,7 +450,7 @@ class HTMLParser:
 
         elif is_start_tag and tag_name == "html":
             self.token_stream.reprocessing = True
-            self.in_body()
+            self.in_body_mode()
 
         elif is_start_tag and tag_name in ["base", "basefont", "bgsound", "link"]:
             self.insert_html_element(token)
@@ -452,7 +462,87 @@ class HTMLParser:
             # POSSIBLE BUG: SKIPPED ENCODING HANDLING HERE (SEEMED UNNECESSARY)
 
         elif is_start_tag and tag_name == "title":
-            pass  # TODO: REMINDER YOU WERE WORKING ON THIS BEFORE RESTRUCTURING
+            self.generic_rcdata_element_parsing_algorithm(token)
 
-    def in_body(self):
+        # TODO: SKIPPING NOSCRIPT TAG CLAUSES HERE, COMPLETE WHEN SCRIPTING SUPPORT IS REQUIRED
+
+        elif is_start_tag and tag_name == "script":
+            raise NotImplementedError
+
+        elif is_end_tag and tag_name == "head":
+            self.stack_of_open_elems.pop()
+            self.insertion_mode = self.after_head_mode
+
+        elif is_end_tag and tag_name in ["body", "html", "br"]:
+            self.stack_of_open_elems.pop()
+            self.insertion_mode = self.after_head_mode
+            self.token_stream.reprocessing = True
+
+        elif is_start_tag and tag_name == "template":
+            raise NotImplementedError
+
+        elif is_end_tag and tag_name == "template":
+            raise NotImplementedError
+
+        elif is_end_tag or (is_start_tag and tag_name == "head"):
+            self.parse_error()
+            return  # ignore
+
+        else:
+            self.stack_of_open_elems.pop()
+            self.insertion_mode = self.after_head_mode
+            self.token_stream.reprocessing = True
+
+    def after_head_mode(self):
+        token = self.token_stream.next()
+        tag_name = token.tag_name
+        is_start_tag, is_end_tag = token.type == "start tag", token.type == "end tag"
+
+        if token.type == "character" and is_whitespace(token.data):
+            self.insert_character(token.data)
+
+        elif token.type == "comment":
+            raise NotImplementedError
+
+        elif token.type == "DOCTYPE":
+            self.parse_error()
+            return  # ignore
+
+        elif is_start_tag and tag_name == "html":
+            self.token_stream.reprocessing = True
+            self.in_body_mode()
+
+        elif is_start_tag and tag_name == "body":
+            self.insert_html_element(token)
+            self.frameset_ok_flag = False
+            self.insertion_mode = self.in_body_mode
+
+        elif is_start_tag and tag_name == "frameset":
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name in ["base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style",
+                                           "template", "title"]:
+            self.parse_error()
+            self.stack_of_open_elems.append(self.head_pointer)
+            self.token_stream.reprocessing = True
+            self.in_head_mode()
+            self.stack_of_open_elems.remove(self.head_pointer)
+
+        elif is_end_tag and tag_name == "template":
+            self.token_stream.reprocessing = True
+            self.in_head_mode()
+
+        elif (is_end_tag and tag_name not in ["body", "html", "br"]) or is_start_tag and tag_name == "head":
+            self.parse_error()
+            return  # ignore
+
+        else:
+            self.insert_html_element(token)
+            self.insertion_mode = self.in_body_mode
+            self.token_stream.reprocessing = True
+
+    def in_body_mode(self):
+        pass
+
+    def text_mode(self):
         pass
