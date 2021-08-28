@@ -6,6 +6,7 @@ class DOCTYPEToken:
         self.public_identifier = "missing"
         self.system_identifier = "missing"
         self.force_quirks_flag = False
+        self.attributes = {}
 
     def emit_to(self, tokenizer_instance):
         output_buffer = tokenizer_instance.output
@@ -159,6 +160,7 @@ class CharacterToken:
     def __init__(self, data=""):
         self.type = "character"
         self.tag_name = ""
+        self.attributes = {}
 
         self.data = data
 
@@ -183,6 +185,7 @@ class EOFToken:
     def __init__(self):
         self.type = "EOF"
         self.tag_name = ""
+        self.attributes = {}
 
     def emit_to(self, tokenizer_instance):
         output_buffer = tokenizer_instance.output

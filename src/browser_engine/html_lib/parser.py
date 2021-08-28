@@ -174,10 +174,8 @@ class HTMLParser:
         local_name = token.tag_name
         try:
             is_value = token.attributes["is"]
-        except KeyError:
+        except (KeyError, IndexError):
             is_value = None
-        except IndexError:
-            print(token)
 
         definition = self.lookup_custom_element_definition(document, namespace, local_name, is_value)
 
@@ -398,6 +396,7 @@ class HTMLParser:
             self.parse_foreign_content()
 
     def parse(self):
+        # print(str(self.insertion_mode)[25:].split('of')[0].upper().replace("_", " "))
         # THIS IS AN HACKISH APPROACH TO PROCESS TOKENS (BASICALLY IGNORES THE PARSING IN FOREIGN CONTENT ALGORITHM)
         while not self.token_stream.is_truly_out_of_index():
             if self.parsing_finished:
@@ -837,7 +836,7 @@ class HTMLParser:
         elif is_end_tag and tag_name in ["applet", "marquee", "object"]:
             raise NotImplementedError
 
-        elif is_start_tag and tag_name is "table":
+        elif is_start_tag and tag_name == "table":
             if self.document.mode != "quirks-mode" and self.has_element_in_button_scope("p"):
                 self.close_p_element()
 

@@ -36,9 +36,6 @@ class Node:
         self_repr = f"<{self.__class__.__name__} type={self.type}>{child_repr}"
         return self_repr
 
-    def __repr__(self):
-        return self.repr()
-
 
 class Document(Node):
     def __init__(self):
@@ -59,6 +56,7 @@ class Element(Node):
         self.custom_element_state = None
         self.custom_element_definition = None
         self.is_value = None
+        self.type = self.local_name
 
 
 class TextNode(Node):
