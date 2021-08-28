@@ -49,7 +49,7 @@ class Document(Node):
 
 
 class Element(Node):
-    def __init__(self, tag_name=None):
+    def __init__(self, tag_name):
         super().__init__(tag_name)
         self.namespace_prefix = None
         self.local_name = None

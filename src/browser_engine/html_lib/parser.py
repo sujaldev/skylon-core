@@ -16,7 +16,7 @@ class TokenStream:
     def __init__(self, source):
         self.tokenizer = HTMLTokenizer(source)
         self.token_generator = self.tokenizer.tokenize()
-        self.current_token = EOFToken()
+        self.current_token = None
 
         self.reprocessing = False
         self.out_of_tokens = False
@@ -29,6 +29,7 @@ class TokenStream:
         except StopIteration:
             self.out_of_tokens = True
             self.current_token = EOFToken()
+
         return self.current_token
 
     def reprocess(self):
@@ -174,7 +175,7 @@ class HTMLParser:
         local_name = token.tag_name
         try:
             is_value = token.attributes["is"]
-        except (KeyError, IndexError):
+        except (KeyError, IndexError, TypeError):
             is_value = None
 
         definition = self.lookup_custom_element_definition(document, namespace, local_name, is_value)
@@ -335,7 +336,7 @@ class HTMLParser:
             raise NotImplementedError
 
         else:
-            result = Element()
+            result = Element(local_name)
             result.namespace = namespace
             result.namespace_prefix = prefix
             result.local_name = local_name
@@ -371,7 +372,13 @@ class HTMLParser:
         self.generate_implied_end_tags("p")
         if self.current_node().type != "p":
             self.parse_error()
-            while self.current_node().type != "p":
+            current_node_is_p_element = True
+            while current_node_is_p_element:
+                try:
+                    current_node_is_p_element = self.current_node().type == "p"
+                except AttributeError:
+                    current_node_is_p_element = False
+                    break
                 self.stack_of_open_elems.pop()
         else:
             self.stack_of_open_elems.pop()
@@ -396,12 +403,12 @@ class HTMLParser:
             self.parse_foreign_content()
 
     def parse(self):
-        # print(str(self.insertion_mode)[25:].split('of')[0].upper().replace("_", " "))
         # THIS IS AN HACKISH APPROACH TO PROCESS TOKENS (BASICALLY IGNORES THE PARSING IN FOREIGN CONTENT ALGORITHM)
         while not self.token_stream.is_truly_out_of_index():
+            print(str(self.insertion_mode)[25:].split('of')[0].upper().replace("_", " "))
+            self.insertion_mode()
             if self.parsing_finished:
                 break
-            self.insertion_mode()
 
     # INSERTION MODES
     def initial_mode(self):
@@ -482,7 +489,9 @@ class HTMLParser:
             return  # ignore
 
         else:
-            head_element = self.insert_html_element(token)
+            head_token = StartTagToken("head")
+            head_token.convert_attrs_to_dict()
+            head_element = self.insert_html_element(head_token)
             self.head_pointer = head_element
 
             self.insertion_mode = self.in_head_mode
@@ -592,7 +601,9 @@ class HTMLParser:
             return  # ignore
 
         else:
-            self.insert_html_element(token)
+            body_token = StartTagToken("body")
+            body_token.convert_attrs_to_dict()
+            self.insert_html_element(body_token)
             self.insertion_mode = self.in_body_mode
             self.token_stream.reprocessing = True
 
@@ -762,7 +773,13 @@ class HTMLParser:
             if self.current_node().namespace != HTML_NAMESPACE and self.current_node().type != tag_name:
                 self.parse_error()
 
-            while self.current_node().type != tag_name:
+            current_node_matches_tag_name = True
+            while current_node_matches_tag_name:
+                try:
+                    current_node_matches_tag_name = self.current_node().type == tag_name
+                except AttributeError:
+                    current_node_matches_tag_name = False
+                    break
                 self.stack_of_open_elems.pop()
 
         elif is_end_tag and tag_name == "form":
