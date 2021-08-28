@@ -714,7 +714,7 @@ class HTMLParser:
 
             current_node = self.current_node()
             unacceptable_node = current_node.namespace == HTML_NAMESPACE and current_node.type in ["h1", "h2", "h3",
-                                                                                                       "h4", "h5", "h6"]
+                                                                                                   "h4", "h5", "h6"]
             if unacceptable_node:
                 self.parse_error()
                 self.stack_of_open_elems.pop()
@@ -837,8 +837,128 @@ class HTMLParser:
         elif is_end_tag and tag_name in ["applet", "marquee", "object"]:
             raise NotImplementedError
 
+        elif is_start_tag and tag_name is "table":
+            if self.document.mode != "quirks-mode" and self.has_element_in_button_scope("p"):
+                self.close_p_element()
+
+            self.insert_html_element(token)
+            self.frameset_ok_flag = False
+            self.insertion_mode = self.in_table
+
+        elif is_end_tag and tag_name == "br":
+            self.parse_error()
+            token = StartTagToken("br").emit_to(self.tokenizer)
+            self.reconstruct_active_formatting_elements()
+            self.insert_html_element(token)
+            self.stack_of_open_elems.pop()
+            self.frameset_ok_flag = False
+
+        elif is_start_tag and tag_name in ["area", "br", "embed", "img", "keygen", "wbr"]:
+            token = StartTagToken("br").emit_to(self.tokenizer)
+            self.reconstruct_active_formatting_elements()
+            self.insert_html_element(token)
+            self.stack_of_open_elems.pop()
+            self.frameset_ok_flag = False
+
+        elif is_start_tag and tag_name == "input":
+            token = StartTagToken("br").emit_to(self.tokenizer)
+            self.reconstruct_active_formatting_elements()
+            self.insert_html_element(token)
+            self.stack_of_open_elems.pop()
+            try:
+                self.frameset_ok_flag = token.attributes["type"].lower() == "hidden"
+            except KeyError:
+                # just for readability (i.e. let the flag be whatever it was before)
+                self.frameset_ok_flag = self.frameset_ok_flag
+
+        elif is_start_tag and tag_name in ["param", "source", "track"]:
+            self.insert_html_element(token)
+            self.stack_of_open_elems.pop()
+
+        elif is_start_tag and tag_name == "hr":
+            if self.has_element_in_button_scope("p"):
+                self.close_p_element()
+
+            self.insert_html_element(token)
+            self.stack_of_open_elems.pop()
+            self.frameset_ok_flag = False
+
+        elif is_start_tag and tag_name == "image":
+            self.parse_error()
+            # To quote html spec authors: "don't ask" just don't. 😂
+            self.token_stream.current_token.tag_name = "img"
+            self.token_stream.reprocessing = True
+
+        elif is_start_tag and tag_name == "textarea":
+            self.insert_html_element(token)
+            next_token = self.token_stream.next()
+            self.token_stream.reprocessing = True
+            if next_token.type == "character" and all([char == NEWLINE for char in token.data]):
+                return  # ignore the token
+
+            self.tokenizer.state = self.tokenizer.rcdata_state
+            self.original_insertion_mode = self.insertion_mode
+            self.frameset_ok_flag = False
+            self.insertion_mode = self.text_mode
+
+        elif is_start_tag and tag_name == "xmp":
+            if self.has_element_in_button_scope("p"):
+                self.close_p_element()
+
+            self.reconstruct_active_formatting_elements()
+            self.frameset_ok_flag = False
+            self.generic_raw_text_element_parsing_algorithm(token)
+
+        elif is_start_tag and tag_name == "iframe":
+            self.frameset_ok_flag = False
+            self.generic_raw_text_element_parsing_algorithm(token)
+
+        elif is_start_tag and tag_name in ["noembed", "noscript"]:  # also requires check for scripting flag but skipped
+            self.generic_raw_text_element_parsing_algorithm(token)
+
+        elif is_start_tag and tag_name == "select":
+            self.reconstruct_active_formatting_elements()
+            raise NotImplementedError
+            # self.insert_html_element(token)
+            # self.frameset_ok_flag = False
+            # states_to_check_for = [self.in_table_mode, self.in_caption_mode, self.in_table_body_mode,
+            #                        self.in_row_mode, self.in_cell_mode]
+            # if self.insertion_mode in states_to_check_for:
+            #     self.insertion_mode = self.in_select_in_table_mode
+            # else:
+            #     self.insertion_mode = self.in_select_mode
+
+        elif is_start_tag and tag_name in ["optgroup", "option"]:
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name in ["rb", "rtc"]:
+            if self.has_element_in_scope("ruby"):
+                self.generate_implied_end_tags()
+                if self.current_node().type != "ruby":
+                    self.parse_error()
+            self.insert_html_element(token)
+
+        elif is_start_tag and tag_name in ["rp", "rt"]:
+            if self.has_element_in_scope("ruby"):
+                self.generate_implied_end_tags()
+                if self.current_node().type not in ["rtc", "ruby"]:
+                    self.parse_error()
+            self.insert_html_element(token)
+
+        elif is_start_tag and tag_name == "math":
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name == "svg":
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name in ["caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th",
+                                           "thead", "tr"]:
+            self.parse_error()
+            return  # ignore
+
         else:
-            return
+            self.reconstruct_active_formatting_elements()
+            self.insert_html_element(token)
 
     def text_mode(self):
         token = self.token_stream.next()

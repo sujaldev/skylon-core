@@ -29,8 +29,15 @@ class Node:
     def find_child(self, child):
         return self.children.index(child)
 
+    def repr(self, tab_index=0):
+        child_repr = ""
+        for child in self.children:
+            child_repr += ("\t" * tab_index) + child.repr(tab_index + 1) + "\n"
+        self_repr = f"<{self.__class__.__name__} type={self.type}>{child_repr}"
+        return self_repr
+
     def __repr__(self):
-        return f"<{self.__class__.__name__} type={self.type}>"
+        return self.repr()
 
 
 class Document(Node):
