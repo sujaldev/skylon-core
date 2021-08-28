@@ -547,6 +547,20 @@ class HTMLTokenizer:
             self.state = self.raw_text_state
 
     ########################################################
+    def plaintext_state(self):
+        current_char, next_char = self.stream.consume()
+
+        if current_char == NULL:
+            self.generate_parse_error("UNEXPECTED NULL CHARACTER")
+            self.emit(CharacterToken(REPLACEMENT_CHARACTER))
+
+        elif current_char == EOF:
+            self.emit(EOFToken())
+
+        else:
+            self.emit(CharacterToken(current_char))
+
+    ########################################################
     def tokenize(self):
         while not self.stream.is_truly_out_of_index():
             self.state()  # process stream according to rules in current state

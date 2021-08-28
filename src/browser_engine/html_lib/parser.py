@@ -4,7 +4,7 @@ https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
 """
 from src.browser_engine.html_lib.CONSTANTS import *
 from src.browser_engine.html_lib.structures.DOM import *
-from src.browser_engine.html_lib.structures.TOKENS import EOFToken
+from src.browser_engine.html_lib.structures.TOKENS import *
 from src.browser_engine.html_lib.tokenizer import HTMLTokenizer
 
 
@@ -41,6 +41,9 @@ class TokenStream:
 
 # noinspection PyMethodMayBeStatic
 class HTMLParser:
+    base_scope_list = ["applet", "caption", "html", "table", "td", "th", "marquee", "object", "template", "mi", "mo",
+                       "mn", "ms", "mtext", "annotation-xml", "foreignObject", "desc", "title"]
+
     def __init__(self, source):
         self.token_stream = TokenStream(source)
         self.tokenizer = self.token_stream.tokenizer
@@ -67,9 +70,9 @@ class HTMLParser:
         self.errors = 0
 
     # PROPERTIES
-    def current_node(self):
+    def current_node(self, step=-1):
         try:
-            return self.stack_of_open_elems[-1]
+            return self.stack_of_open_elems[step]
         except IndexError:
             return None
 
@@ -173,6 +176,8 @@ class HTMLParser:
             is_value = token.attributes["is"]
         except KeyError:
             is_value = None
+        except IndexError:
+            print(token)
 
         definition = self.lookup_custom_element_definition(document, namespace, local_name, is_value)
 
@@ -235,7 +240,8 @@ class HTMLParser:
         if insertion_node.type == "document":
             return  # function doesn't return anything, just used to abort here
 
-        preceding_element = self.stack_of_open_elems[insertion_location - 1]
+        preceding_element = self.stack_of_open_elems.index(insertion_node) - 1
+        preceding_element = self.stack_of_open_elems[preceding_element]
         insertion_node_succeeds_text_element = preceding_element.type == "text"
         if insertion_node_succeeds_text_element:
             preceding_element.data += data
@@ -243,6 +249,27 @@ class HTMLParser:
         else:
             new_text_node = TextNode(data=data)
             insertion_node.insert_child(new_text_node, insertion_location)  # insert_child(what, where)
+
+    def generic_rcdata_element_parsing_algorithm(self, token):
+        self.insert_html_element(token)
+        self.tokenizer.state = self.tokenizer.rcdata_state
+
+        self.original_insertion_mode = self.insertion_mode
+        self.insertion_mode = self.text_mode
+
+    def generic_raw_text_element_parsing_algorithm(self, token):
+        self.insert_html_element(token)
+        self.tokenizer.state = self.tokenizer.raw_text_state
+
+        self.original_insertion_mode = self.insertion_mode
+        self.insertion_mode = self.text_mode
+
+    def generate_implied_end_tags(self, excluded_element=None):
+        tags_with_implied_end = ["dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc"]
+        if excluded_element is not None:
+            tags_with_implied_end.remove(excluded_element)
+        while self.current_node().type in tags_with_implied_end:
+            self.stack_of_open_elems.pop()
 
     def parse_foreign_content(self):
         token = self.token_stream.next()
@@ -290,9 +317,6 @@ class HTMLParser:
 
                 self.adjust_foreign_attributes()
 
-    def parse_generic_rcdata(self, token):
-        element = self.insert_html_element(token)
-
     # EXTRA ALGORITHMS
     # noinspection PyUnusedLocal
     def lookup_custom_element_definition(self, document, namespace, local_name, is_value):
@@ -322,23 +346,37 @@ class HTMLParser:
             result.is_value = is_value
         return result
 
-    def generic_rcdata_element_parsing_algorithm(self, token):
-        self.insert_html_element(token)
-        self.tokenizer.state = self.tokenizer.rcdata_state
-
-        self.original_insertion_mode = self.insertion_mode
-        self.insertion_mode = self.text_mode
-
-    def generic_raw_text_element_parsing_algorithm(self, token):
-        self.insert_html_element(token)
-        self.tokenizer.state = self.tokenizer.raw_text_state
-
-        self.original_insertion_mode = self.insertion_mode
-        self.insertion_mode = self.text_mode
-
     def reconstruct_active_formatting_elements(self):
         # TODO: COMPLETE ACTIVE FORMATTING ELEMENTS
         pass
+
+    def has_element_in_specific_scope(self, target_node_type, scope_list):
+        for step in range(len(self.stack_of_open_elems)):
+            node = self.current_node(step)
+            if node.type == target_node_type:
+                return True
+            elif node.type in scope_list:
+                return False
+
+    def has_element_in_scope(self, target_node_type):
+        return self.has_element_in_specific_scope(target_node_type, self.base_scope_list)
+
+    def has_element_in_list_item_scope(self, target_node_type):
+        scope = self.base_scope_list + ["ol", "li"]
+        return self.has_element_in_specific_scope(target_node_type, scope)
+
+    def has_element_in_button_scope(self, target_node_type):
+        scope = self.base_scope_list + ["button"]
+        return self.has_element_in_specific_scope(target_node_type, scope)
+
+    def close_p_element(self):
+        self.generate_implied_end_tags("p")
+        if self.current_node().type != "p":
+            self.parse_error()
+            while self.current_node().type != "p":
+                self.stack_of_open_elems.pop()
+        else:
+            self.stack_of_open_elems.pop()
 
     # MAIN LOOP
     def dispatch_token(self):
@@ -639,7 +677,188 @@ class HTMLParser:
             self.parsing_finished = True
 
         elif is_end_tag and tag_name == "body":
-            pass
+            if not self.has_element_in_scope("body"):
+                self.parse_error()
+                return  # ignore
+
+            for node in self.stack_of_open_elems[::-1]:
+                if node.type in unacceptable_elements:
+                    self.parse_error()
+                    break
+
+            self.insertion_mode = self.after_body
+
+        elif is_end_tag and tag_name == "html":
+            if not self.has_element_in_scope("body"):
+                self.parse_error()
+                return  # ignore
+            for node in self.stack_of_open_elems[::-1]:
+                if node.type in unacceptable_elements:
+                    self.parse_error()
+                    break
+
+            self.insertion_mode = self.after_body
+            self.token_stream.reprocessing = True
+
+        elif is_start_tag and tag_name in ["address", "article", "aside", "blockquote", "center", "details", "dialog",
+                                           "dir", "div", "di", "fieldset", "figcaption", "figure", "footer", "header",
+                                           "hgroup", "main", "menu", "nav", "ol", "p", "section", "summary", "ul"]:
+            if self.has_element_in_button_scope("p"):
+                self.close_p_element()
+
+            self.insert_html_element(token)
+
+        elif is_start_tag and tag_name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
+            if self.has_element_in_button_scope("p"):
+                self.close_p_element()
+
+            current_node = self.current_node()
+            unacceptable_node = current_node.namespace == HTML_NAMESPACE and current_node.type in ["h1", "h2", "h3",
+                                                                                                       "h4", "h5", "h6"]
+            if unacceptable_node:
+                self.parse_error()
+                self.stack_of_open_elems.pop()
+
+            self.insert_html_element(token)
+
+        elif is_start_tag and tag_name in ["pre", "listing"]:
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name == "form":
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name == "li":
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name in ["dd", "dt"]:
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name == "plaintext":
+            if self.has_element_in_button_scope("p"):
+                self.close_p_element()
+
+            self.insert_html_element(token)
+            self.tokenizer.state = self.tokenizer.plaintext_state
+
+        elif is_start_tag and tag_name == "button":
+            if self.has_element_in_scope("button"):
+                self.parse_error()
+                self.generate_implied_end_tags()
+                while self.current_node().type != "button":
+                    self.stack_of_open_elems.pop()
+                self.stack_of_open_elems.pop()
+            self.reconstruct_active_formatting_elements()
+            self.insert_html_element(token)
+            self.frameset_ok_flag = False
+
+        elif is_end_tag and tag_name in ["address", "article", "aside", "blockquote", "button", "center", "details",
+                                         "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure", "footer",
+                                         "header", "hgroup", "listing", "main", "menu", "nav", "ol", "pre", "section",
+                                         "summary", "ul"]:
+            if self.has_element_in_scope(tag_name):
+                self.parse_error()
+                return  # ignore
+
+            self.generate_implied_end_tags()
+            if self.current_node().namespace != HTML_NAMESPACE and self.current_node().type != tag_name:
+                self.parse_error()
+
+            while self.current_node().type != tag_name:
+                self.stack_of_open_elems.pop()
+
+        elif is_end_tag and tag_name == "form":
+            raise NotImplementedError
+
+        elif is_end_tag and tag_name == "p":
+            if not self.has_element_in_button_scope("p"):
+                self.parse_error()
+                self.insert_html_element(StartTagToken().emit_to(self.tokenizer))
+                self.close_p_element()
+
+        elif is_end_tag and tag_name == "li":
+            if self.has_element_in_list_item_scope("li"):
+                self.parse_error()
+                return  # ignore
+
+            self.generate_implied_end_tags("li")
+            if self.current_node().type != "li":
+                self.parse_error()
+            while self.current_node().type != "li":
+                self.stack_of_open_elems.pop()
+            self.stack_of_open_elems.pop()
+
+        elif is_end_tag and tag_name in ["dd", "dt"]:
+            if not self.has_element_in_scope(tag_name):
+                self.parse_error()
+                return  # ignore
+
+            self.generate_implied_end_tags(tag_name)
+            if self.current_node().type != tag_name:
+                self.parse_error()
+            while self.current_node().type != tag_name:
+                self.stack_of_open_elems.pop()
+            self.stack_of_open_elems.pop()
+
+        elif is_end_tag and tag_name in ["h1", "h2", "h3", "h4", "h5"]:
+            has_element_in_scope = False
+            for h in ["h1", "h2", "h3", "h4", "h5"]:
+                if self.has_element_in_scope(h):
+                    has_element_in_scope = True
+                    break
+
+            if not has_element_in_scope:
+                self.parse_error()
+                return  # ignore
+
+            self.generate_implied_end_tags()
+            if self.current_node().type != tag_name:
+                self.parse_error()
+            while self.current_node().type not in ["h1", "h2", "h3", "h4", "h5"]:
+                self.stack_of_open_elems.pop()
+            self.stack_of_open_elems.pop()
+
+        elif is_start_tag and tag_name == "a":
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name in ["b", "big", "code", "em", "font", "i", "s", "small", "strike", "strong",
+                                           "tt", "u"]:
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name == "nobr":
+            raise NotImplementedError
+
+        elif is_end_tag and tag_name in ["a", "b", "big", "code", "em", "font", "i", "nobr", "s", "small", "strike",
+                                         "strong", "tt", "u"]:
+            raise NotImplementedError
+
+        elif is_start_tag and tag_name in ["applet", "marquee", "object"]:
+            raise NotImplementedError
+
+        elif is_end_tag and tag_name in ["applet", "marquee", "object"]:
+            raise NotImplementedError
+
+        else:
+            return
 
     def text_mode(self):
-        pass
+        token = self.token_stream.next()
+
+        if token.type == "character":
+            self.insert_character(token.data)
+
+        if token.type == "EOF":
+            self.parse_error()
+
+            if self.current_node().tag_name == "script":
+                raise NotImplementedError
+
+            self.stack_of_open_elems.pop()
+            self.token_stream.reprocessing = True
+            self.insertion_mode = self.original_insertion_mode
+
+        elif token.type == "end tag" and token.tag_name == "script":
+            raise NotImplementedError
+
+        else:
+            self.stack_of_open_elems.pop()
+            self.insertion_mode = self.original_insertion_mode
