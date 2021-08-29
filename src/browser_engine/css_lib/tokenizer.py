@@ -18,9 +18,13 @@ class CSSTokenizer:
 
         # BUFFERS
         self.current_token = None
+        self.errors = 0
 
     def consume(self, step=1):
         return self.stream.consume(step)
+
+    def parse_error(self):
+        self.errors += 1
 
     def consume_a_token(self):
         # RETURNS A TOKEN OF ANY TYPE
@@ -53,3 +57,145 @@ class CSSTokenizer:
                 self.current_token = create_token("delim-token")
                 self.current_token.value = current_char
                 return self.current_token
+
+        elif current_char == "'":
+            self.current_token = self.consume_a_string_token()
+            return self.current_token
+
+        elif current_char == "(":
+            self.current_token = create_token("(-token")
+            return self.current_token
+
+        elif current_char == ")":
+            self.current_token = create_token(")-token")
+            return self.current_token
+
+        elif current_char == "+":
+            if self.three_code_points_start_a_number():
+                self.stream.reconsuming = True
+                self.current_token = self.consume_a_numeric_token()
+                return self.current_token
+            else:
+                self.current_token = create_token("delim-token")
+                self.current_token.value = current_char
+                return self.current_token
+
+        elif current_char == ",":
+            self.current_token = create_token("comma-token")
+            return self.current_token
+
+        elif current_char == "-":
+            # NEGATIVE NUMBER
+            if self.three_code_points_start_a_number():
+                self.stream.reconsuming = True
+                self.current_token = self.consume_a_numeric_token()
+                return self.current_token
+
+            # COMMENT DATA CLOSE (CDC) -->
+            elif (next_char, self.stream.nth_next_char()) == ("-", ">"):
+                self.consume(2)
+                self.current_token = create_token("CDC-token")
+                return self.current_token
+
+            elif self.three_code_points_start_an_identifier():
+                self.stream.reconsuming = True
+                self.current_token = self.consume_ident_like_token()
+                return self.current_token
+
+            else:
+                self.current_token = create_token("delim-token")
+                self.current_token.value = current_char
+                return self.current_token
+
+        elif current_char == ".":
+            if self.three_code_points_start_a_number():
+                self.stream.reconsuming = True
+                self.current_token = self.consume_a_numeric_token()
+                return self.current_token
+
+            else:
+                self.current_token = create_token("delim-token")
+                self.current_token.value = current_char
+                return self.current_token
+
+        elif current_char == ":":
+            self.current_token = create_token("colon-token")
+            return self.current_token
+
+        elif current_char == ";":
+            self.current_token = create_token("semicolon-token")
+            return self.current_token
+
+        elif current_char == "<":
+            second_next_char = self.stream.nth_next_char()
+            third_next_char = self.stream.nth_next_char(2)
+            is_comment_start = (next_char, second_next_char, third_next_char) == ("!", "-", "-")
+            if is_comment_start:
+                self.consume(3)
+                self.current_token = create_token("CDO-token")
+                return self.current_token
+
+            else:
+                self.current_token = create_token("delim-token")
+                self.current_token.value = current_char
+                return self.current_token
+
+        elif current_char == "@":
+            second_next_char = self.stream.nth_next_char()
+            third_next_char = self.stream.nth_next_char(2)
+            if self.three_code_points_start_an_identifier(next_char, second_next_char, third_next_char):
+                self.current_token = create_token("at-keyword-token")
+                self.current_token.value = self.consume_a_name()
+                return self.current_token
+
+            else:
+                self.current_token = create_token("delim-token")
+                self.current_token.value = current_char
+                return self.current_token
+
+        elif current_char == "[":
+            self.current_token = create_token("[-token")
+            return self.current_token
+
+        elif current_char == "\\":
+            if self.two_code_points_are_valid_escape():
+                self.stream.reconsuming = True
+                self.current_token = self.consume_ident_like_token()
+                return self.current_token
+
+            else:
+                self.parse_error()
+                self.current_token = create_token("delim-token")
+                self.current_token.value = current_char
+                return self.current_token
+
+        elif current_char == "]":
+            self.current_token = create_token("]-token")
+            return self.current_token
+
+        elif current_char == "{":
+            self.current_token = create_token("{-token")
+            return self.current_token
+
+        elif current_char == "}":
+            self.current_token = create_token("}-token")
+            return self.current_token
+
+        elif inside(ASCII_DIGIT, current_char):
+            self.stream.reconsuming = True
+            self.current_token = self.consume_a_numeric_token()
+            return self.current_token
+
+        elif is_name_code_point(current_char):
+            self.stream.reconsuming = True
+            self.current_token = self.consume_ident_like_token()
+            return self.current_token
+
+        elif current_char == EOF:
+            self.current_token = create_token("EOF-token")
+            return self.current_token
+
+        else:
+            self.current_token = create_token("delim-token")
+            self.current_token.value = current_char
+            return self.current_token
