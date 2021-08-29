@@ -10,8 +10,15 @@ tokens_with_numeric_value_attribute = token_types[7:10]
 
 
 class Token:
+    def __init__(self):
+        # Not to be confused with __repr__, this representation is used for parsing as defined in the specs here:
+        self.representation = ""  # https://www.w3.org/TR/css-syntax-3/#representation
+
+    def token_type(self):
+        return self.__class__.__name__
+
     def __repr__(self):
-        return f"<{self.__class__.__name__}>"
+        return f"<{self.token_type()}>"
 
 
 def create_token(token_type):

@@ -45,3 +45,7 @@ class CharStream:
     def reconsume(self):
         self.reconsuming = False
         return self.current_char, self.next_char
+
+    def nth_next_char(self, n=1):
+        # returns the nᵗʰ next character
+        return self.source[self.index + n]
