@@ -2,14 +2,11 @@
 THIS IS THE TREE CONSTRUCTION STAGE AS SPECIFIED IN THE SPECIFICATION HERE:
 https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
 """
-from src.browser_engine.html_lib.CONSTANTS import *
 from src.browser_engine.html_lib.structures.DOM import *
 from src.browser_engine.html_lib.structures.TOKENS import *
 from src.browser_engine.html_lib.tokenizer import HTMLTokenizer
-
-
-def is_whitespace(string):
-    return all([char in WHITESPACE for char in string])
+from src.browser_engine.helpers.CONSTANTS import *
+from src.browser_engine.helpers.funcs import is_whitespace
 
 
 class TokenStream:
