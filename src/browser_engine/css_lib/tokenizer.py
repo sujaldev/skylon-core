@@ -199,3 +199,26 @@ class CSSTokenizer:
             self.current_token = create_token("delim-token")
             self.current_token.value = current_char
             return self.current_token
+
+    def consume_comments(self):
+        next_char, next_next_char = self.stream.next_char, self.stream.nth_next_char()
+        is_comment_start = (next_char, next_next_char) == ("/", "*")
+        if is_comment_start:
+            self.consume(2)
+            while True:
+                next_char, next_next_char = self.stream.next_char, self.stream.nth_next_char()
+                is_comment_end = (next_char, next_next_char) == ("*", "/")
+                eof_reached = self.stream.is_truly_out_of_index()
+                if is_comment_end:
+                    self.consume(2)
+                    print("hola")
+                    if not eof_reached:
+                        self.consume_comments()
+                    return
+                elif eof_reached:
+                    print("here")
+                    self.parse_error()
+                    self.consume(2)
+                    return
+                self.consume()
+
