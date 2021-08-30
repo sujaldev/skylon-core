@@ -6,7 +6,7 @@ from src.browser_engine.css_lib.structures.TOKENS import create_token
 
 from src.browser_engine.helpers.preprocessor import preprocess_css
 from src.browser_engine.helpers.stream import CharStream
-from src.browser_engine.helpers.funcs import inside, is_name_code_point
+from src.browser_engine.helpers.funcs import inside, is_name_code_point, is_non_printable_code_point
 from src.browser_engine.helpers.CONSTANTS import *
 
 
@@ -99,7 +99,7 @@ class CSSTokenizer:
 
             elif self.three_code_points_start_an_identifier():
                 self.stream.reconsuming = True
-                self.current_token = self.consume_ident_like_token()
+                self.current_token = self.consume_an_ident_like_token()
                 return self.current_token
 
             else:
@@ -160,7 +160,7 @@ class CSSTokenizer:
         elif current_char == "\\":
             if self.two_code_points_are_valid_escape():
                 self.stream.reconsuming = True
-                self.current_token = self.consume_ident_like_token()
+                self.current_token = self.consume_an_ident_like_token()
                 return self.current_token
 
             else:
@@ -188,7 +188,7 @@ class CSSTokenizer:
 
         elif is_name_code_point(current_char):
             self.stream.reconsuming = True
-            self.current_token = self.consume_ident_like_token()
+            self.current_token = self.consume_an_ident_like_token()
             return self.current_token
 
         elif current_char == EOF:
@@ -211,14 +211,150 @@ class CSSTokenizer:
                 eof_reached = self.stream.is_truly_out_of_index()
                 if is_comment_end:
                     self.consume(2)
-                    print("hola")
                     if not eof_reached:
                         self.consume_comments()
                     return
                 elif eof_reached:
-                    print("here")
                     self.parse_error()
                     self.consume(2)
                     return
                 self.consume()
 
+    def consume_a_numeric_token(self):
+        current_char, next_char = self.consume()
+
+        number_value, number_type = self.consume_a_number()
+        second_next_char = self.stream.nth_next_char()
+        third_next_char = self.stream.nth_next_char()
+        if self.three_code_points_start_an_identifier(next_char, second_next_char, third_next_char):
+            current_token = create_token("dimension-token")
+            current_token.value = number_value
+            current_token.type = number_type
+            current_token.unit = self.consume_a_name()
+            return current_token
+
+        elif next_char == "%":
+            self.consume()
+            current_token = create_token("percentage-token")
+            current_token.value = number_value
+            return current_token
+
+        else:
+            current_token = create_token("number-token")
+            current_token.value = number_value
+            current_token.type = number_type
+            return current_token
+
+    def consume_an_ident_like_token(self):
+        string = self.consume_a_name()
+        is_url_function_start = string.lower() == "url" and self.stream.next_char == "("
+        if is_url_function_start:
+            self.consume(2)
+            while self.stream.next_char in WHITESPACE:
+                self.consume()
+
+            next_char, next_next_char = self.stream.next_char, self.stream.nth_next_char()
+            next_two_chars = (next_char, next_next_char)
+            next_chars_form_string = True in [
+                next_two_chars in [("'", "'"), ('"', '"')],
+                next_char in ["'", '"'],
+                next_char in WHITESPACE and next_next_char in ["'", '"']
+            ]
+            if next_chars_form_string:
+                current_token = create_token("function-token")
+                current_token.value = string
+                return current_token
+            else:
+                current_token = self.consume_a_url_token()
+                return current_token
+
+        elif self.stream.next_char == "(":
+            self.consume()
+            current_token = create_token("function-token")
+            current_token.value = string
+            return current_token
+
+        else:
+            current_token = create_token("ident-token")
+            current_token.value = string
+            return current_token
+
+    def consume_a_string_token(self, ending_char=None):
+        if ending_char is None:
+            ending_char = self.stream.current_char
+
+        current_token = create_token("string-token")
+        while True:
+            current_char, next_char = self.consume()
+
+            if current_char == ending_char:
+                return current_token
+
+            elif current_char == EOF:
+                self.parse_error()
+                return current_token
+
+            elif current_char == NEWLINE:
+                self.parse_error()
+                self.stream.reconsuming = True
+                current_token = create_token("bad-string-token")
+                return current_token
+
+            elif current_char == "\\":
+                if next_char == EOF:
+                    pass
+                elif next_char == NEWLINE:
+                    self.consume()
+                else:
+                    current_token.value += self.consume_an_escaped_code_point()
+
+            else:
+                current_token.value += current_char
+
+    def consume_a_url_token(self):
+        current_token = create_token("url-token")
+
+        while self.stream.next_char in WHITESPACE:
+            self.consume()
+
+        while True:
+            current_char, next_char = self.consume()
+
+            if current_char == ")":
+                return current_token
+
+            elif current_char == EOF:
+                self.parse_error()
+                return current_token
+
+            elif current_char in WHITESPACE:
+                while self.stream.next_char in WHITESPACE:
+                    current_char, next_char = self.consume()
+
+                    if next_char in WHITESPACE + [EOF]:
+                        if next_char == EOF:
+                            self.parse_error()
+                        self.consume()
+                        return current_token
+                    else:
+                        self.consume_remnants_of_a_bad_url()
+                        current_token = create_token("bad-url-token")
+                        return current_token
+
+            elif current_char in ["'", '"', "("] or is_non_printable_code_point(current_char):
+                self.parse_error()
+                self.consume_remnants_of_a_bad_url()
+                current_token = create_token("bad-url-token")
+                return current_token
+
+            elif current_char == "\\":
+                if self.two_code_points_are_valid_escape():
+                    current_token.value += self.consume_an_escaped_code_point()
+                else:
+                    self.parse_error()
+                    self.consume_remnants_of_a_bad_url()
+                    current_token = create_token("bad-url-token")
+                    return current_token
+
+            else:
+                current_token.value += current_char
