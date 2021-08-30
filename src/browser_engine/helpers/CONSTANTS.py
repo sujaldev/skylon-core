@@ -60,3 +60,5 @@ SPECIAL_NODES = [
     "th", "thead", "title", "tr", "track", "ul", "wbr", "xmp", "mi", "mo", "mn", "ms", "mtext", "annotation-xml",
     "foreignObject", "desc", "title"
 ]
+
+MAXIMUM_ALLOWED_CODE_POINT = 1114111

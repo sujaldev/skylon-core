@@ -6,7 +6,7 @@ from src.browser_engine.css_lib.structures.TOKENS import create_token
 
 from src.browser_engine.helpers.preprocessor import preprocess_css
 from src.browser_engine.helpers.stream import CharStream
-from src.browser_engine.helpers.funcs import inside, is_name_code_point, is_non_printable_code_point
+from src.browser_engine.helpers.funcs import *
 from src.browser_engine.helpers.CONSTANTS import *
 
 
@@ -45,7 +45,7 @@ class CSSTokenizer:
 
         elif current_char == "#":
             second_next_char = self.stream.nth_next_char()
-            if is_name_code_point(next_char) or self.is_valid_escape(next_char, second_next_char):
+            if is_name_code_point(next_char) or self.two_code_points_are_valid_escape(next_char, second_next_char):
                 self.current_token = create_token("hash-token")
                 third_next_char = self.stream.nth_next_char(2)
                 if self.three_code_points_start_an_identifier(next_char, second_next_char, third_next_char):
@@ -358,3 +358,141 @@ class CSSTokenizer:
 
             else:
                 current_token.value += current_char
+
+    def consume_an_escaped_code_point(self):
+        current_char, next_char = self.consume()
+
+        if inside(ASCII_HEX_DIGIT, current_char):
+            buffer = current_char
+            for i in range(5):
+                if inside(ASCII_HEX_DIGIT, next_char):
+                    buffer += next_char
+                    current_char, next_char = self.consume()
+                else:
+                    break
+
+            if next_char in WHITESPACE:
+                self.consume()
+            code_point = int(buffer, base=16)
+            if code_point == 0 or code_point > MAXIMUM_ALLOWED_CODE_POINT:
+                return REPLACEMENT_CHARACTER
+            else:
+                return chr(code_point)
+
+        elif current_char == EOF:
+            self.parse_error()
+            return REPLACEMENT_CHARACTER
+
+        else:
+            return current_char
+
+    def two_code_points_are_valid_escape(self, char1=None, char2=None):
+        if char1 is None:
+            char1 = self.stream.current_char
+        if char2 is None:
+            char2 = self.stream.next_char
+
+        if char1 != "\\":
+            return False
+
+        elif char2 == NEWLINE:
+            return False
+
+        else:  # yes i know this can be made better, but this way the readability matches the specs.
+            return True
+
+    def three_code_points_start_an_identifier(self, char1=None, char2=None, char3=None):
+        if char1 is None:
+            char1 = self.stream.current_char
+        if char2 is None:
+            char2 = self.stream.next_char
+        if char3 is None:
+            char3 = self.stream.nth_next_char()
+
+        if char1 == "-":
+            is_valid = True in [
+                is_name_start_code_point(char2),
+                char2 == "-",
+                self.two_code_points_are_valid_escape(char2, char3)
+            ]
+            return is_valid
+
+        elif is_name_start_code_point(char1):
+            return True
+
+        elif char1 == "\\":
+            return self.two_code_points_are_valid_escape(char1, char2)
+
+        else:
+            return False
+
+    def three_code_points_start_a_number(self, char1=None, char2=None, char3=None):
+        if char1 is None:
+            char1 = self.stream.current_char
+        if char2 is None:
+            char2 = self.stream.next_char
+        if char3 is None:
+            char3 = self.stream.nth_next_char()
+
+        if char1 in ["+", "-"]:
+            if inside(ASCII_DIGIT, char1):
+                return True
+            elif char2 == "." and inside(ASCII_DIGIT, char3):
+                return True
+            return False
+
+        elif char1 == ".":
+            return inside(ASCII_DIGIT, char2)
+
+        elif inside(ASCII_DIGIT, char1):
+            return True
+
+        else:
+            return False
+
+    def consume_a_name(self):
+        result = ""
+
+        while True:
+            current_char, next_char = self.consume()
+
+            if is_name_code_point(current_char):
+                result += current_char
+
+            elif self.two_code_points_are_valid_escape():
+                result += self.consume_an_escaped_code_point()
+
+            else:
+                self.stream.reconsuming = True
+                return result
+
+    def consume_a_number(self):
+        num_repr, num_type = "", "integer"
+
+        current_char, next_char = self.stream.current_char, self.stream.next_char
+
+        if next_char in ["+", "-"]:
+            current_char, next_char = self.consume()
+            num_repr += current_char
+
+        while inside(ASCII_DIGIT, next_char):
+            current_char, next_char = self.consume()
+            num_repr += current_char
+
+        second_next_char = self.stream.nth_next_char()
+        if next_char == "." and inside(ASCII_DIGIT, second_next_char):
+            current_char, next_char = self.consume(2)
+            num_repr += current_char + next_char
+            num_type = "number"
+            while inside(ASCII_DIGIT, next_char):
+                current_char, next_char = self.consume()
+                num_repr += current_char
+
+    def consume_remnants_of_a_bad_url(self):
+        while True:
+            current_char, next_char = self.consume()
+
+            if current_char in [")", EOF]:
+                return
+            elif self.two_code_points_are_valid_escape():
+                self.consume_an_escaped_code_point()
