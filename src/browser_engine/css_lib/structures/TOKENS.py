@@ -2,7 +2,7 @@ token_types = [
     "ident-token", "function-token", "at-keyword-token", "hash-token", "string-token", "url-token", "delim-token",
     "number-token", "percentage-token", "dimension-token", "bad-string-token", "bad-url-token", "whitespace-token",
     "CDO-token", "CDC-token", "colon-token", "semicolon-token", "comma-token", "[-token", "]-token", "(-token",
-    ")-token", "{-token", "}-token"
+    ")-token", "{-token", "}-token", "EOF-token"
 ]
 
 tokens_with_value_attribute = token_types[:7]
@@ -13,21 +13,22 @@ class Token:
     def __init__(self):
         # Not to be confused with __repr__, this representation is used for parsing as defined in the specs here:
         self.representation = ""  # https://www.w3.org/TR/css-syntax-3/#representation
+        self.value = self.token_type()
 
     def token_type(self):
         return self.__class__.__name__
 
     def token_info(self):
         if "value" in self.__dict__.keys():
-            attrs = f' value: "{self.__dict__["value"]}"'
+            attrs = f' -> value: "{self.__dict__["value"]}"'
             if self.token_type() == "hash-token":
-                attrs += f' type: "{self.__dict__["type"]}"'
+                attrs += f'| type: "{self.__dict__["type"]}"'
             return attrs
         else:
             return ""
 
     def __repr__(self):
-        return f"<{self.token_type()}> -> {self.token_info()}"
+        return f"<{self.token_type()}>{self.token_info()}"
 
 
 def create_token(token_type):

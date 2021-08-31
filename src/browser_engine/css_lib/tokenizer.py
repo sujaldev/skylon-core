@@ -23,6 +23,14 @@ class CSSTokenizer:
 
         self.output = []
         self.tokenize()
+        self.append_eof_token_if_not_exists()
+
+    def append_eof_token_if_not_exists(self):
+        try:
+            if self.output[-1].token_type() != "EOF-token":
+                self.output.append(create_token("EOF-token"))
+        except IndexError:
+            self.output.append(create_token("EOF-token"))
 
     def consume(self, step=1):
         return self.stream.consume(step)
