@@ -19,10 +19,15 @@ class Token:
 
     def token_info(self):
         if "value" in self.__dict__.keys():
-            return f"value: {self.__dict__['value']}"
+            attrs = f' value: "{self.__dict__["value"]}"'
+            if self.token_type() == "hash-token":
+                attrs += f' type: "{self.__dict__["type"]}"'
+            return attrs
+        else:
+            return ""
 
     def __repr__(self):
-        return f"<{self.token_type()} {self.token_info()}>"
+        return f"<{self.token_type()}> -> {self.token_info()}"
 
 
 def create_token(token_type):

@@ -21,6 +21,9 @@ class CSSTokenizer:
         self.current_token = None
         self.errors = 0
 
+        self.output = []
+        self.tokenize()
+
     def consume(self, step=1):
         return self.stream.consume(step)
 
@@ -523,6 +526,6 @@ class CSSTokenizer:
             elif self.two_code_points_are_valid_escape():
                 self.consume_an_escaped_code_point()
 
-    def next(self):
+    def tokenize(self):
         while not self.stream.is_truly_out_of_index():
-            yield self.consume_a_token()
+            self.output.append(self.consume_a_token())
