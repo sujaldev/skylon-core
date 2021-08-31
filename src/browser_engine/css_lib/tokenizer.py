@@ -34,8 +34,8 @@ class CSSTokenizer:
         current_char, next_char = self.consume()
 
         if inside(WHITESPACE, current_char):
-            while inside(WHITESPACE, current_char):
-                current_char = self.consume()[0]
+            while inside(WHITESPACE, next_char):
+                current_char, next_char = self.consume()
 
             self.current_token = create_token("whitespace-token")
             return self.current_token
@@ -222,8 +222,7 @@ class CSSTokenizer:
                 self.consume()
 
     def consume_a_numeric_token(self):
-        current_char, next_char = self.consume()
-
+        current_char, next_char = self.stream.current_char, self.stream.next_char
         number_value, number_type = self.consume_a_number()
         second_next_char = self.stream.nth_next_char()
         third_next_char = self.stream.nth_next_char()
@@ -510,7 +509,10 @@ class CSSTokenizer:
         try:
             return int(string)
         except ValueError:
-            return float(string)
+            try:
+                return float(string)
+            except ValueError:
+                return 0
 
     def consume_remnants_of_a_bad_url(self):
         while True:
@@ -520,3 +522,7 @@ class CSSTokenizer:
                 return
             elif self.two_code_points_are_valid_escape():
                 self.consume_an_escaped_code_point()
+
+    def next(self):
+        while not self.stream.is_truly_out_of_index():
+            yield self.consume_a_token()

@@ -17,8 +17,12 @@ class Token:
     def token_type(self):
         return self.__class__.__name__
 
+    def token_info(self):
+        if "value" in self.__dict__.keys():
+            return f"value: {self.__dict__['value']}"
+
     def __repr__(self):
-        return f"<{self.token_type()}>"
+        return f"<{self.token_type()} {self.token_info()}>"
 
 
 def create_token(token_type):

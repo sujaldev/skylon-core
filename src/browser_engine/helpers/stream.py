@@ -29,7 +29,7 @@ class CharStream:
 
     def is_truly_out_of_index(self):
         # The index could be out of range but processing should continue until no reconsumption is required.
-        is_out_of_index = self.index > len(self.source) or len(self.source) == 0
+        is_out_of_index = self.index >= len(self.source) or len(self.source) == 0
         return is_out_of_index and not self.reconsuming
 
     def consume(self, step=1):

@@ -28,7 +28,10 @@ def is_name_start_code_point(char):
 def is_non_ascii_code_point(char):
     # ASCII is a 7 bit encoding, 2^7 = 128.
     # ∴, any char with code point > 128 is a non ascii character
-    return ord(char) > 128
+    try:
+        return ord(char) > 128
+    except TypeError:
+        return ""
 
 
 def is_non_printable_code_point(char):
