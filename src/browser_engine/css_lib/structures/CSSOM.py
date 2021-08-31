@@ -53,11 +53,3 @@ class SimpleBlock:
     def __repr__(self):
         values = ",\n".join([str(token.value) for token in self.value if token.value is not None])
         return f"{{\n{values}\n}}"
-
-
-class StyleSheet:
-    def __init__(self):
-        self.values = None
-
-    def __repr__(self):
-        return str(self.values)[1:-1]

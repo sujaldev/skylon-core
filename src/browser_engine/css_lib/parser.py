@@ -59,12 +59,26 @@ class CSSParser:
     def consume(self, step=1):
         return self.stream.consume(step)
 
+    def parse_prelude(self, prelude):
+        # TODO: PARSE PRELUDE CORRECTLY
+        return prelude
+
     # ENTRY POINTS
+    def make_style_sheet(self):
+        rules = self.parse_a_stylesheet()
+
+        for rule in rules:
+            if type(rule) == QualifiedRule:
+                rule.prelude = self.parse_prelude(rule.prelude)
+                rule.block = self.parse_a_list_of_declarations()
+        return rules
+
     def parse_a_stylesheet(self):
-        stylesheet = StyleSheet()
         rules = self.consume_a_list_of_rules(top_level_flag=True)
-        stylesheet.values = rules
-        return stylesheet
+        return rules
+
+    def parse_a_list_of_declarations(self):
+        return self.consume_a_list_of_declarations()
 
     # PARSER ALGORITHMS
     def consume_a_list_of_rules(self, top_level_flag=False):
@@ -138,6 +152,26 @@ class CSSParser:
             else:
                 self.stream.reconsuming = True
                 qualified_rule.prelude.append(self.consume_a_component_value())
+
+    def consume_a_list_of_declarations(self):
+        list_of_declarations = []
+
+        while True:
+            current_token, next_token = self.consume()
+            token_type = current_token.token_type()
+
+            if token_type in ["whitespace-token", "semicolon-token"]:
+                pass
+
+            elif token_type == "EOF-token":
+                return list_of_declarations
+
+            elif token_type == "at-keyword-token":
+                self.stream.reconsuming = True
+                list_of_declarations.append(self.consume_an_at_rule())
+
+            elif token_type == "ident-token":
+                pass
 
     def consume_a_component_value(self):
         current_token, next_token = self.consume()
