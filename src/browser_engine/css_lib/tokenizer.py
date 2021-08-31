@@ -10,6 +10,7 @@ from src.browser_engine.helpers.funcs import *
 from src.browser_engine.helpers.CONSTANTS import *
 
 
+# noinspection PyMethodMayBeStatic
 class CSSTokenizer:
     def __init__(self, source):
         # INITIALIZE STREAM
@@ -487,6 +488,29 @@ class CSSTokenizer:
             while inside(ASCII_DIGIT, next_char):
                 current_char, next_char = self.consume()
                 num_repr += current_char
+
+        second_next_char = self.stream.nth_next_char()
+        third_next_char = self.stream.nth_next_char()
+        if next_char.lower() == "e" and \
+                ((second_next_char in ["+", "-"] and inside(ASCII_DIGIT, third_next_char)) or
+                 inside(ASCII_DIGIT, second_next_char)):
+            current_char, next_char = self.consume()
+            num_repr += current_char + next_char
+            current_char, next_char = self.consume()  # to compensate for the used but still unconsumed next_char above
+            num_type = "number"
+            while inside(ASCII_DIGIT, next_char):
+                current_char, next_char = self.consume()
+                num_repr += current_char
+
+        num_value = self.convert_string_to_a_number(num_repr)
+        return num_value, num_type
+
+    def convert_string_to_a_number(self, string):
+        # TODO: IMPLEMENT THR REAL ALGORITHM FOR CONVERT STRING TO A NUMBER
+        try:
+            return int(string)
+        except ValueError:
+            return float(string)
 
     def consume_remnants_of_a_bad_url(self):
         while True:
