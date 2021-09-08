@@ -24,10 +24,16 @@ class QualifiedRule:
 
 
 class Declaration:
-    def __init__(self, name, value, important=False):
+    def __init__(self, name=None, value=None, important=False):
         self.name = name
-        self.value = value
+        if value is None:
+            self.value = []
+        else:
+            self.value = value
         self.important = important
+
+    def __repr__(self):
+        return f"{self.name}: {self.value.value};"
 
 
 class CSSFunction:
