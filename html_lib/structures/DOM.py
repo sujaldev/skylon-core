@@ -1,4 +1,4 @@
-from src.browser_engine.helpers.CONSTANTS import HTML_NAMESPACE
+from helpers.CONSTANTS import HTML_NAMESPACE
 
 
 class Node:

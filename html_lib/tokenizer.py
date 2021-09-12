@@ -9,12 +9,12 @@ PARSING SUCH LANGUAGES IS EASIER. HTML IS NOT SUCH A LANGUAGE AND HAS TO PARSED 
 A STATE MACHINE. THE STATE MACHINE TO TOKENIZE HTML IS DESCRIBE HERE:
 https://html.spec.whatwg.org/multipage/parsing.html#tokenization
 """
-from src.browser_engine.html_lib.structures.TOKENS import *
+from html_lib.structures.TOKENS import *
 
-from src.browser_engine.helpers.preprocessor import preprocess_html
-from src.browser_engine.helpers.stream import CharStream
-from src.browser_engine.helpers.funcs import inside
-from src.browser_engine.helpers.CONSTANTS import *
+from helpers.preprocessor import preprocess_html
+from helpers.stream import CharStream
+from helpers.funcs import inside
+from helpers.CONSTANTS import *
 
 
 class HTMLTokenizer:
