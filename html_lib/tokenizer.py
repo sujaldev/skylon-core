@@ -17,6 +17,7 @@ from helpers.funcs import inside
 from helpers.CONSTANTS import *
 
 
+# noinspection DuplicatedCode
 class HTMLTokenizer:
     def __init__(self, source):
         # INITIALIZE STREAM
@@ -38,7 +39,7 @@ class HTMLTokenizer:
         self.last_emitted_start_tag_name = None
 
         # TOKENIZE RIGHT AWAY
-        self.tokenize()
+        # self.tokenize()
 
     ########################################################
     # ALGORITHMS
