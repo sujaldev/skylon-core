@@ -5,8 +5,12 @@ class Node:
         self.children = []
 
     def show_tree(self, tab=0):
-        prompt = "├──" + "┼──" * tab + " "
-        print(prompt + str(self))
+        representation = str(self)
+        if representation:
+            prompt = "\033[37m" + "├──" + "┼──" * tab + "┼\033[0m"
+            print(prompt + representation)
+
+        # RECURSE ON CHILDREN
         for child in self.children:
             child.show_tree(tab=tab + 1)
 
@@ -27,4 +31,4 @@ class TextNode(Node):
         if not self.tag.data.isspace():
             return '"' + self.tag.data + '"'
         else:
-            return '""'
+            return ''

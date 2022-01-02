@@ -5,6 +5,7 @@ https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
 from html_lib.structures.DOM import *
 from html_lib.structures.TOKENS import *
 from html_lib.tokenizer import HTMLTokenizer
+from helpers.CONSTANTS import VOID_ELEMENTS
 
 
 class TokenStream:
@@ -66,7 +67,10 @@ class HTMLParser:
         if token.type == "start tag":
             parent = self.open_elements[-1] if self.open_elements else None
             elem = Element(token, parent)
-            self.open_elements.append(elem)
+            if token.tag_name not in VOID_ELEMENTS:
+                self.open_elements.append(elem)
+            elif parent:
+                parent.children.append(elem)
             if not self.document:
                 self.document = elem
 
